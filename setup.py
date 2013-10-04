@@ -1,4 +1,4 @@
-#!/usr/bin/python -W default
+#!/usr/bin/env python3
 #
 # (c) 2013, Russell Stuart.
 # Licensed under GPLv2, or any later version.  See COPYING for details.

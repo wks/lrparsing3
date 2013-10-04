@@ -14,29 +14,29 @@ def main(argv=sys.argv):
     grammar = lua52.Lua52Grammar
     if len(argv) == 2 and argv[1] == '--compile':
         start_time = time.time()
-        print grammar.pre_compile_grammar(None)
-        print "compile time: %f secs" % (time.time() - start_time)
+        print(grammar.pre_compile_grammar(None))
+        print("compile time: %f secs" % (time.time() - start_time))
         sys.exit(1)
     start_time = time.time()
     try:
         grammar.compile_grammar()
     except:
         try:
-            print grammar.repr_grammar()
-            print
-            print grammar.repr_productions()
-            print
-            print grammar.repr_parse_table()
+            print(grammar.repr_grammar())
+            print()
+            print(grammar.repr_productions())
+            print()
+            print(grammar.repr_parse_table())
         finally:
             raise
-    print "parser generation time: %f secs" % (time.time() - start_time)
-    print
+    print("parser generation time: %f secs" % (time.time() - start_time))
+    print()
     assert not grammar.unused_rules(), grammar.unused_rules()
     start_time = time.time()
-    for i in xrange(len(lua_tests)):
-        print grammar.repr_parse_tree(grammar.parse(lua_tests[i]))
-        print
-    print "avg compile_time=%f" % ((time.time() - start_time) / len(lua_tests))
+    for i in range(len(lua_tests)):
+        print(grammar.repr_parse_tree(grammar.parse(lua_tests[i])))
+        print()
+    print("avg compile_time=%f" % ((time.time() - start_time) / len(lua_tests)))
 
 lua_tests = [
     """

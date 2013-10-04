@@ -64,7 +64,7 @@ def main(argv=sys.argv):
         sys.stderr.write("usage: %s 'expression' [...]\n" % argv[0])
         sys.exit(1)
     for expr in argv[1:]:
-        print "%s = %d" % (expr, ExprGrammar.parse(expr, ExprGrammar.eval_node))
+        print("%s = %d" % (expr, ExprGrammar.parse(expr, ExprGrammar.eval_node)))
 
 if __name__ == "__main__":
     main()

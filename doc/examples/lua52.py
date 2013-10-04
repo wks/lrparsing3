@@ -46,150 +46,11 @@ import lrparsing
 from lrparsing import (
         Grammar, Keyword, List, Opt, Prio, Repeat, Ref, Right,
         THIS, Token, Tokens, TokenRegistry)
+import collections
 
+import lua52grammar
 
-#
-# The complete Lua52 grammar.
-#
-class Lua52Grammar(Grammar):
-    class T(TokenRegistry):
-        name = Token(re='[a-zA-Z_][a-zA-Z_0-9]*')
-        short_string = Token(re=r'"(?:[^"\\]|\\.)*"' + "|" + r"'(?:[^'\\]|\\.)*'")
-        long_string = Token(re=r'\[(=*)\[.*?\\]\1\]')
-        decimal_number = Token(re=
-            '(?:[0-9]+(?:[.][0-9]*)?|[.][0-9]+)' +
-            '(?:[Ee][+-]?[0-9]+)?')
-        hex_number = Token(re=
-            '0[xX]' +
-            '(?:[0-9a-fA-Z]+(?:[.][0-9a-fA-F]*)?|[.][0-9a-fA-F]+)' +
-            '(?:[pP][+-]?[0-9a-zA-F]+)?')
-        var_args = Token("...")
-        line_comment = Token(re='--(?:\n|(?:[^[\n]|\\[=*[^[=])[^\n]*\n)')
-        block_comment = Token(re=r'--\[(=*)\[.*?\]\1\]')
-    #
-    # Forward declarations.
-    #
-    exp = Ref("exp")
-    prefix_exp = Ref("prefix_exp")
-    last_statement = Ref("last_statement")
-    statement = Ref("statement")
-    #
-    # Collective tokens.
-    #
-    string = T.short_string | T.long_string
-    number = T.decimal_number | T.hex_number
-    variable_ref = List(T.name, ".", min=1)
-    subscript_exp = prefix_exp + '[' + exp + ']'
-    var = variable_ref | subscript_exp
-    var_list = List(var, ',', min=1)
-    exp_list = List(exp, ',', min=1)
-    #
-    # Table constructor.
-    #
-    field = '[' + exp + ']' + '=' + exp | T.name + '=' + exp | exp
-    table_constructor = '{' + List(field, Tokens(", ;"), opt=True) + '}'
-    #
-    # A function call.
-    #
-    function_args =  (
-            '(' + Opt(exp_list) + ')' | table_constructor | string)
-    function_call =  (
-            prefix_exp + function_args |
-            prefix_exp + ':' + T.name + function_args)
-    #
-    # A sequnece of statements.
-    #
-    block = Repeat(statement + Opt(';')) + Opt(last_statement + Opt(';'))
-    #
-    # Scope control.  These 0 length productions create and delete scopes
-    # for the variables used and declared between them.
-    #
-    begin_scope = THIS * 0
-    end_scope = THIS * 0
-    loop = THIS * 0
-    begin_loop_scope = begin_scope + loop
-    scope = begin_scope + block + end_scope
-    loop_scope = begin_loop_scope + block + end_scope
-    #
-    # A Function definition.
-    #
-    name_list = Right(List(T.name, ',', min=1))
-    _parameter_list = T.name | T.var_args | T.name + ',' + THIS
-    parameter_list = Opt(_parameter_list)
-    function_body = (
-            begin_scope + '(' + parameter_list + ')' +
-            block + end_scope + Keyword('end'))
-    anon_function = Keyword('function') + function_body
-    #
-    # An expression.
-    #
-    constant = Tokens("", 'nil false true')
-    adjusted_exp = '(' + exp + ')'
-    _atom = (
-        constant | number | string | T.var_args | anon_function |
-        table_constructor)
-    prefix_exp = Prio(function_call, adjusted_exp, var)
-    exp = Prio(
-        _atom,
-        prefix_exp,
-        exp >> '^' >> exp,
-        Tokens("- #", "not") >> exp,
-        exp << Tokens("* / %") << exp,
-        exp >> ".." >> exp,
-        exp << Tokens("+ -") << exp,
-        exp << Tokens("< <= > >= == ~=") << exp,
-        exp << Keyword("and") << exp,
-        exp << Keyword("or") << exp)
-    function_name = variable_ref + Opt(':' + T.name)
-    #
-    # The statements.
-    #
-    assign_st = var_list + '=' + exp_list
-    do_st = Keyword('do') + scope +  Keyword('end')
-    while_st = (
-            Keyword('while') + exp + Keyword('do') +
-            loop_scope + Keyword('end'))
-    repeat_st = Keyword('repeat') + loop_scope + Keyword('until') + exp
-    if_st = (
-        Keyword('if') + exp + Keyword('then') + scope +
-        Repeat(Keyword('elseif') + exp + Keyword('then') + scope) +
-        Opt(Keyword('else') + scope) +
-        Keyword('end'))
-    for_steps = T.name + '=' + exp + ',' + exp + Opt(',' + exp)
-    for_step_st = (
-        Keyword('for') + begin_loop_scope + for_steps +
-        Keyword('do') + block + end_scope + Keyword('end'))
-    for_name_list = name_list * 1
-    for_in_st = (
-        Keyword('for') + begin_loop_scope + for_name_list + Keyword('in') +
-        exp_list + Keyword('do') + block + end_scope + Keyword('end'))
-    function_call_st = function_call * 1
-    function_decl_st = Keyword('function') + function_name + function_body
-    local_function_decl_st = (
-        Keyword('local') + Keyword('function') + T.name + function_body)
-    local_assign_st = Keyword('local') + name_list + Opt('=' + exp_list)
-    statement =  (
-        assign_st |
-        do_st |
-        for_in_st |
-        for_step_st |
-        function_call_st |
-        function_decl_st |
-        if_st |
-        local_assign_st |
-        local_function_decl_st |
-        repeat_st |
-        while_st)
-    return_st = Keyword('return') + Opt(exp_list)
-    break_st = Keyword("break")
-    last_statement = return_st | break_st
-    #
-    # Special grammar symbols.
-    #
-    begin_program = begin_scope * 1
-    end_program = end_scope * 1
-    START = begin_program + block + end_program
-    COMMENTS = T.line_comment | T.block_comment
+from lua52grammar import Lua52Grammar
 
 #
 # A List of all python keywords so we can avoid them when generating variable
@@ -397,7 +258,7 @@ class Scope(object):
         result = []
         namespace_vars = frozenset(
                 var.python_name()
-                for var in self.declared_vars.itervalues()
+                for var in self.declared_vars.values()
                 if var.use_namespace)
         if namespace_vars:
             vars = ', '.join(
@@ -569,7 +430,7 @@ class Lua52Compiler(object):
 # The magic that makes this work is hidden in its __new__ function.
 #
 class Lua52Node(tuple):
-    INDENT, OUTDENT = range(2)
+    INDENT, OUTDENT = list(range(2))
 
     #
     # The compiled form mimics the parse tree in that it also is a nested
@@ -752,8 +613,8 @@ class Lua52Node(tuple):
     # ignored.
     #
     def _verify(cls, grammar):
-        for name, value in cls.__dict__.iteritems():
-            if (name[0] != '_' and callable(value) and
+        for name, value in cls.__dict__.items():
+            if (name[0] != '_' and isinstance(value, collections.Callable) and
                     not isinstance(value, type)):
                 if name in grammar.__dict__:
                     attr = grammar.__dict__[name]
@@ -800,7 +661,7 @@ class Lua52Node(tuple):
             data = match.group()
             c = data[1]
             result = self.LUA_SHORT_STRING_ESC.get(c, c)
-            if not callable(result):
+            if not isinstance(result, collections.Callable):
                 return result
             return result(data[1:])
         self._set_data(klass=str)
@@ -1054,7 +915,7 @@ class Lua52Node(tuple):
                 names_end = len(self.rhs)
                 var_args = None
             params = []
-            for i in xrange(0, names_end, 2):
+            for i in range(0, names_end, 2):
                 var = self.rhs[i]
                 compiler.declare_var(var.token)
                 params.append(compiler.python_name(var))
@@ -1291,7 +1152,7 @@ class Lua52Node(tuple):
 
     def begin_program(self, compiler):
         def r(path, root, klass):
-            for name, value in klass.__dict__.iteritems():
+            for name, value in klass.__dict__.items():
                 if "__" in name:
                     continue
                 real_name = name if not name.startswith("_l_") else name[3:]
@@ -1301,7 +1162,7 @@ class Lua52Node(tuple):
                     r(new_path, root, value)
         begin_scope = self.rhs[0]
         scope = begin_scope.data.scope
-        for name, value in Lua52StandardLibrary.__dict__.iteritems():
+        for name, value in Lua52StandardLibrary.__dict__.items():
             if "__" not in name:
                 real_name = name if not name.startswith("_l_") else name[3:]
                 scope.declare_var(real_name)
@@ -1365,7 +1226,7 @@ def coerce2string(obj):
 # In Lua a float may be a float or a string.
 #
 def coerce2float(obj):
-    if not isinstance(obj, (basestring, int)):
+    if not isinstance(obj, (str, int)):
         return obj
     return float(obj)
 
@@ -1374,7 +1235,7 @@ def coerce2float(obj):
 # Lua's floats are all truthy, including 0.0.
 #
 class ZeroTrue(float):
-    def __nonzero__(self):
+    def __bool__(self):
         return True
 ZeroTrue.zero = ZeroTrue(0)
 
@@ -1383,7 +1244,7 @@ ZeroTrue.zero = ZeroTrue(0)
 # Lua's strings are all truthy, including "".
 #
 class EmptyStringTrue(str):
-    def __nonzero__(self):
+    def __bool__(self):
         return True
 EmptyStringTrue.empty_string = EmptyStringTrue("")
 
@@ -1453,14 +1314,14 @@ def luaiter(name_count, *_args):
 # Return the length of an object.
 #
 def lualen(v):
-    if isinstance(v, basestring):
+    if isinstance(v, str):
         return len(v)
     if isinstance(v, LuaTable):
         meta = v.metadict["__len"]
         if meta != LuaTable.NOTIMPLEMENTED[0]:
             return meta(v)
         return v.lualen
-    assert isinstance(v, (basestring, LuaTable))
+    assert isinstance(v, (str, LuaTable))
 
 
 #
@@ -1521,7 +1382,7 @@ class LuaTable(dict):
     #
     # In Lua, a Table is always truthy, even empty ones.
     #
-    def __nonzero__(self):
+    def __bool__(self):
         return True
 
     def __setitem__(self, key, value):
@@ -1626,7 +1487,7 @@ class PythonTable(LuaTable):
     def __init__(self):
         LuaTable.__init__(self)
         for obj in self.__class__, self:
-            for name, value in obj.__dict__.iteritems():
+            for name, value in obj.__dict__.items():
                 if not "__" in name:
                     if not isinstance(value, classmethod):
                         self[name] = value
@@ -1684,7 +1545,7 @@ class String(PythonTable):
                 if matched in cls.__RE_CLASSES:
                     return cls.__RE_CLASSES[matched]
                 if matched[1] == 'b':
-                    raise StandardError("Sorry, %b isn't supported")
+                    raise Exception("Sorry, %b isn't supported")
                 if matched[1] == 'f':
                     return '(?<!%s)(?=%s)' % (matched[2:], matched[2:])
                 return matched[1]
@@ -1785,7 +1646,7 @@ class String(PythonTable):
     def gsub(cls, s, pattern, repl, n=None):
         s = coerce2string(s)
         pattern = coerce2string(pattern)
-        if isinstance(repl, (basestring, float)):
+        if isinstance(repl, (str, float)):
             repl = coerce2string(repl)
             def sub(match):
                 result = match.group()
@@ -1806,7 +1667,7 @@ class String(PythonTable):
                 if not coerce2bool(retval[0]):
                     return matched
                 return key
-        elif callable(repl):
+        elif isinstance(repl, collections.Callable):
             def sub(match):
                 matched = match.group()
                 args = match.groups()
@@ -1815,7 +1676,7 @@ class String(PythonTable):
                     return matched
                 return retval
         else:
-            assert isinstance(repl, (basestring, LuaTable)) or callable(repl)
+            assert isinstance(repl, (str, LuaTable)) or isinstance(repl, collections.Callable)
         if n is None:
             return re.subn(cls._pattern(pattern), s, sub)
         return re.subn(cls._pattern(pattern), s, sub, int(coerce2float(n)))
@@ -2186,7 +2047,7 @@ class Io(PythonTable):
             try:
                 io["hande"].close()
                 io["open"] = False
-            except EnvironmentError, e:
+            except EnvironmentError as e:
                 return (None, str(e), e.errno)
             return (True,)
 
@@ -2194,7 +2055,7 @@ class Io(PythonTable):
         def flush(cls, io):
             try:
                 io["hande"].flush()
-            except EnvironmentError, e:
+            except EnvironmentError as e:
                 return (None, str(e), e.errno)
             return (True,)
 
@@ -2317,7 +2178,7 @@ class Io(PythonTable):
                 formats = cls.__DEFAULT_FORMAT
             try:
                 return cls.__read(io, formats)[1]
-            except EnvironmentError, e:
+            except EnvironmentError as e:
                 return (None, str(e), e.errno)
 
         @classmethod
@@ -2366,7 +2227,7 @@ class Io(PythonTable):
 
     def input(self, io):
         if io is not None:
-            if isinstance(io, basestring):
+            if isinstance(io, str):
                 io = self.__Io(open(io))
             self.__default_input = io
         return (self.__default_input,)
@@ -2395,7 +2256,7 @@ class Io(PythonTable):
 
     def output(self, io):
         if io is not None:
-            if isinstance(io, basestring):
+            if isinstance(io, str):
                 io = self.__Io(open(io, "w"))
             self.__default_output = io
         return (self.__default_output,)
@@ -2499,7 +2360,7 @@ class Os(PythonTable):
     def remove(cls, filename):
         try:
             os.remove(filename)
-        except EnvironmentError, e:
+        except EnvironmentError as e:
             return (None, str(e), e.errno)
         return (True,)
 
@@ -2507,13 +2368,13 @@ class Os(PythonTable):
     def rename(cls, oldname, newname):
         try:
             os.rename(oldname, newname)
-        except EnvironmentError, e:
+        except EnvironmentError as e:
             return (None, str(e), e.errno)
         return (True,)
 
     _LOCAL_CATEGORIES = dict(
         (name[3:].lower(), value)
-        for name, value in locale.__dict__.iteritems()
+        for name, value in locale.__dict__.items()
         if name.startswith("LC_"))
 
     @classmethod
@@ -2524,7 +2385,7 @@ class Os(PythonTable):
         cat = cls._LOCAL_CATEGORIES[category]
         if locale is None:
             return (locale.setlocale(cat),)
-        assert isinstance(locale, basestring)
+        assert isinstance(locale, str)
         try:
             return (locale.setlocale(cat, locale),)
         except locale.Error:
@@ -2560,7 +2421,7 @@ class Lua52StandardLibrary(PythonTable):
     _VERSION = "Lua 5.2"
 
     def __init__(self):
-        for name, value in self.__class__.__dict__.iteritems():
+        for name, value in self.__class__.__dict__.items():
             if not "__" in name:
                 if isinstance(value, type) and PythonTable in value.__bases__:
                     self.__dict__[name] = value()
@@ -2613,7 +2474,7 @@ class Lua52StandardLibrary(PythonTable):
 
     @classmethod
     def next(cls, t, index=None):
-        keys = t.keys()
+        keys = list(t.keys())
         if index is None:
             i = -1
         elif isinstance(index, (NextFloat, NextString)):
@@ -2637,7 +2498,7 @@ class Lua52StandardLibrary(PythonTable):
     def pairs(cls, t):
         if isinstance(t, LuaTable) and "__ipairs" in t.metadict:
             return t.metadict["__pairs"](t)
-        items = t.iteritems()
+        items = iter(t.items())
         def _pairs(s, v):
             return next(items, (None,))
         return _pairs, t, None
@@ -2646,14 +2507,14 @@ class Lua52StandardLibrary(PythonTable):
     def pcall(cls, function, *args):
         try:
             return (True,) + function(*args)
-        except StandardError, e:
+        except Exception as e:
             return (False, str(e))
 
     @classmethod
     def _l_print(cls, *args):
         for arg in args:
-            print cls.tostring(arg)[0],
-        print
+            print(cls.tostring(arg)[0], end=' ')
+        print()
         return NONE1
 
     @classmethod
@@ -2714,7 +2575,7 @@ class Lua52StandardLibrary(PythonTable):
             return t.metadict["__tostring"](t)
         if obj is None:
             return ("nil",)
-        if isinstance(obj, (float, basestring)):
+        if isinstance(obj, (float, str)):
             return (coerce2string(obj),)
         return ("%s: 0x%x" % (cls.type(obj), id(obj)),)
 
@@ -2736,9 +2597,9 @@ class Lua52StandardLibrary(PythonTable):
 def compile_lua52(lua52_source):
     pre_comp = Lua52Grammar.pre_compile_grammar(Lua52Grammar.pre_compiled)
     if pre_comp is not None:
-        print "Please edit set %r and set %s.pre_compiled to:" % (
-                __file__, Lua52Grammar.__name__)
-        print pre_comp
+        print("Please edit set %r and set %s.pre_compiled to:" % (
+                __file__, Lua52Grammar.__name__))
+        print(pre_comp)
         sys.exit(1)
     lua52_compiler = Lua52Compiler()
     parse_tree = Lua52Grammar.parse(lua52_source, lua52_compiler.tree_factory)
@@ -2756,18 +2617,18 @@ def main(argv=sys.argv):
         pre_comp = Lua52Grammar.pre_compile_grammar(pre_compiled_in)
     except:
         try:
-            print Lua52Grammar.repr_grammar()
-            print
-            print Lua52Grammar.repr_productions()
-            print
-            print Lua52Grammar.repr_parse_table()
+            print(Lua52Grammar.repr_grammar())
+            print()
+            print(Lua52Grammar.repr_productions())
+            print()
+            print(Lua52Grammar.repr_parse_table())
         finally:
             raise
     if pre_comp is not None:
-        print "compile time: %f secs" % (time.time() - start_time)
-        print "Please edit set %r and set %s.pre_compiled to:" % (
-                __file__, Lua52Grammar.__name__)
-        print pre_comp
+        print("compile time: %f secs" % (time.time() - start_time))
+        print("Please edit set %r and set %s.pre_compiled to:" % (
+                __file__, Lua52Grammar.__name__))
+        print(pre_comp)
         sys.exit(1)
     if len(argv) > i and argv[i] == '--':
         i += 1
@@ -2783,9 +2644,9 @@ def main(argv=sys.argv):
         open(output_filename, "w").write(compiled)
         mode = stat.S_IMODE(os.stat(input_filename).st_mode)
         try:
-            os.chmod(output_filename, mode & 0777)
+            os.chmod(output_filename, mode & 0o777)
             os.chmod(output_filename, mode)
-        except EnvironmentError, e:
+        except EnvironmentError as e:
             if e.errno != errno.EPERM:
                 raise
 

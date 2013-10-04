@@ -207,9 +207,9 @@ def main(argv=sys.argv):
         pre_compiled = Sqlite3Grammar.pre_compiled
     pre_comp = Sqlite3Grammar.pre_compile_grammar(pre_compiled)
     if pre_comp is not None:
-        print "compile time: %f secs" % (time.time() - start_time)
-        print "Please edit set %r and set %s.pre_compiled to:" % (__file__, Sqlite3Grammar.__name__)
-        print pre_comp
+        print("compile time: %f secs" % (time.time() - start_time))
+        print("Please edit set %r and set %s.pre_compiled to:" % (__file__, Sqlite3Grammar.__name__))
+        print(pre_comp)
         sys.exit(1)
     quiet = False
     if len(argv) >= 2 and argv[1] == '--quiet':
@@ -218,16 +218,16 @@ def main(argv=sys.argv):
     tests = argv[1:] if len(argv) > 1 else sql_tests
     start_time = time.time()
     parse_trees = []
-    for i in xrange(len(tests)):
+    for i in range(len(tests)):
         if not quiet:
-            print
-            print i, tests[i]
+            print()
+            print(i, tests[i])
         parse_tree = Sqlite3Grammar.parse(tests[i])
         if not quiet:
-            print Sqlite3Grammar.repr_parse_tree(parse_tree)
+            print(Sqlite3Grammar.repr_parse_tree(parse_tree))
         parse_trees.append(parse_tree)
     end_time = time.time()
-    print "avg parse_time/statement=%f" % ((end_time - start_time) / len(tests))
+    print("avg parse_time/statement=%f" % ((end_time - start_time) / len(tests)))
     def token_count(t):
         count = 0
         for s in t:
@@ -237,7 +237,7 @@ def main(argv=sys.argv):
                 count += token_count(s[1:])
         return count
     count = token_count(parse_trees)
-    print "avg parse_time/token=%f, %d tokens" % ((end_time - start_time) / count, count)
+    print("avg parse_time/token=%f, %d tokens" % ((end_time - start_time) / count, count))
 
 sql_tests = [
   "SELECT coalesce((select 11 from t1 where 19 in (t1.b,+11,coalesce((select max((abs(17)/abs(t1.f))) from t1 where ((abs(t1.f)/abs(t1.b)) in (select case (min(t1.a | d*d)+(abs(count(*)-count(*)+ -count(*)*max( -t1.c))-max(f))) when  -count(distinct 19) then ((count(*))) else max(13) end from t1 union select count(distinct b) from t1)) or 19 in (t1.a,t1.c,17)),17) | 17)),13) FROM t1 WHERE not not c=a-+(select case ~case  -~+count(distinct (select count(distinct t1.a)*max(13) from t1))+max( -19*f)*max(f)*max(f)* -count(distinct d)-(count(distinct 11)) | max(t1.f)*count(*) when count(distinct b) then count(distinct t1.b) else  -min(t1.f) end*cast(avg(11) AS integer) when max(t1.f) then max(c) else count(*) end from t1)+d",

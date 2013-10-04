@@ -14,7 +14,7 @@ import string
 #
 # Common base class for all exceptions here.
 #
-class LrParsingError(StandardError):
+class LrParsingError(Exception):
     pass
 
 
@@ -83,6 +83,11 @@ class SymbolSet(frozenset):
     def __str__(self):
         return ",".join(sorted(str(symbol) for symbol in self))
 
+    def __or__(self, other):
+        return SymbolSet(super(SymbolSet, self).__or__(other))
+
+    def __sub__(self, other):
+        return SymbolSet(super(SymbolSet, self).__sub__(other))
 
 #
 # An LR(0) Item.  An item is just a production and the position the parser
@@ -119,7 +124,8 @@ class Lr0Item(object):
         return "%s = %s" % (self.production.lhs, ' '.join(prod))
 
     def key(cls, lr0_item):
-        return lr0_item._key
+        k = lr0_item._key
+        return str(k)
     key = classmethod(key)
 
 
@@ -191,7 +197,7 @@ class Lr0Kernel(object):
 # information the Parser doesn't need has been discarded.
 #
 class Lr1State(int):
-    __slots__ = ('actions', 'gotos', 'id', 'rules')
+    #__slots__ = ('actions', 'gotos', 'id', 'rules')
 
     def __new__(cls, id, actions, gotos, rules):
         result = super(Lr1State, cls).__new__(cls, id)
@@ -222,11 +228,11 @@ class Lr1State(int):
         return '\n'.join(result)
 
     def __str__(self):
-        return "Lr1State:%d" % (self,)
+        return "Lr1State:%d" % (self.id,)
 
     def to_flat(self, grammar):
         actions = {}
-        for token, action in self.actions.iteritems():
+        for token, action in self.actions.items():
             if len(action) == 1:
                 new_action = action[0]
             elif action[2] is None:
@@ -241,7 +247,7 @@ class Lr1State(int):
 
     def from_flat(cls, index, flat, rules, token_registry):
         actions = {}
-        for token_name, action in flat[0].iteritems():
+        for token_name, action in flat[0].items():
             if not isinstance(action, tuple):
                 new_action = (action,)
             elif len(action) == 2:
@@ -302,7 +308,7 @@ class ItemSet(object):
             result.append(line)
         if self._closure:
             result.append("  -- closure")
-            for closure_item in Lr1Item.sorted(self._closure.itervalues()):
+            for closure_item in Lr1Item.sorted(iter(self._closure.values())):
                 line = "    %r %s" % (
                         closure_item, self.repr_prio(closure_item))
                 result.append(line)
@@ -323,7 +329,7 @@ class ItemSet(object):
 
     def repr_prio(self, item):
         result = []
-        for prio, lookahead in sorted(self.prio[item.lr0_item].iteritems()):
+        for prio, lookahead in sorted(self.prio[item.lr0_item].items()):
             result.append("%r:[%s]" % (prio, lookahead))
         return '{%s}' % ', '.join(result)
 
@@ -436,7 +442,7 @@ class ItemSet(object):
                 append = (0,) * max(0, rank - item.production.lhs.rank)
                 if priority is not None:
                     append += (priority,)
-                prio_items = self.prio[item.lr0_item].iteritems()
+                prio_items = iter(self.prio[item.lr0_item].items())
                 for itemset_prio, item_prio in prio_items:
                     existing_sets = self.prio[closure.lr0_item]
                     if empty_token not in first_set:
@@ -478,13 +484,13 @@ class ItemSet(object):
     # Iterating over us returns the Lr1Item's in our kernel.
     #
     def __iter__(self):
-        return self._kernel.itervalues()
+        return iter(self._kernel.values())
 
     #
     # Return a generator for the kernel + closure.
     #
     def all_items(self):
-        return itertools.chain(self, self._closure.itervalues())
+        return itertools.chain(self, iter(self._closure.values()))
 
     #
     # Compute the closure for ourselves.
@@ -492,10 +498,10 @@ class ItemSet(object):
     def compute_closure(self, cache):
         if self._closure is None:
             empty_token = cache['__empty__']
-            for lr0_item, old_prio_dict in self.prio.iteritems():
+            for lr0_item, old_prio_dict in self.prio.items():
                 prio_dict = {}
                 last_lookahead = empty_token.first_set
-                for prio, lookahead in sorted(old_prio_dict.iteritems()):
+                for prio, lookahead in sorted(old_prio_dict.items()):
                     if lookahead != last_lookahead:
                         prio_dict[prio] = lookahead
                         last_lookahead = lookahead
@@ -555,7 +561,7 @@ class ItemSet(object):
                 all_lookaheads = None
                 lhs_prio = {}
                 for lr0_item in item_set._kernel:
-                    for prio, lookahead in item_set.prio[lr0_item].iteritems():
+                    for prio, lookahead in item_set.prio[lr0_item].items():
                         key = (lr0_item.production.lhs, prio)
                         if key not in lhs_prio:
                             lhs_prio[key] = lookahead
@@ -583,7 +589,7 @@ class ItemSet(object):
         other_lhs_prio, other_all_lookaheads = lhs_prio(other)
         common = self_all_lookaheads & other_all_lookaheads
         compatible = True
-        for key, self_lookaheads in self_lhs_prio.iteritems():
+        for key, self_lookaheads in self_lhs_prio.items():
             other_lookaheads = other_lhs_prio.get(key, None)
             if other_lookaheads is not None:
                 if (self_lookaheads & common) != (other_lookaheads & common):
@@ -598,7 +604,7 @@ class ItemSet(object):
         for item in self:
             other_item = other._kernel[item.lr0_item]
             modified = False
-            for prio, other_lookahead in other.prio[item.lr0_item].iteritems():
+            for prio, other_lookahead in other.prio[item.lr0_item].items():
                 self_lookahead = self.prio[item.lr0_item].get(prio, None)
                 if self_lookahead is None:
                     self.prio[item.lr0_item][prio] = other_lookahead
@@ -707,7 +713,7 @@ class ShiftAction(Action):
         for lr1_item in my_item_set:
             if lhs != lr1_item.production.lhs:
                 lhs = None
-            items = my_item_set.prio[lr1_item.lr0_item].iteritems()
+            items = iter(my_item_set.prio[lr1_item.lr0_item].items())
             for prio, lookahead in items:
                 if token in lookahead:
                     if low > prio:
@@ -761,7 +767,7 @@ class ReduceAction(Action):
         lhs = lr1_item.production.lhs
         low = (1e100,)
         high = ()
-        for prio, lookahead in item_set.prio[lr1_item.lr0_item].iteritems():
+        for prio, lookahead in item_set.prio[lr1_item.lr0_item].items():
             if token in lookahead:
                 if low > prio:
                     low = prio
@@ -829,7 +835,7 @@ class Parser(object):
             msg = "Symbol name %r is reserved" % self.epoch_symbol.name
             raise GrammarError(msg)
         self.rules[self.epoch_symbol.name] = self.epoch_symbol
-        for rule in self.rules.itervalues():
+        for rule in self.rules.values():
             rule.resolved = True
         #
         # Get the special cased tokens.
@@ -866,7 +872,7 @@ class Parser(object):
         #
         used_symbols = self.epoch_symbol.compile_grammar(self.empty_token)
         self.unused_symbols = frozenset(
-                symbol for symbol in self.rules.itervalues()
+                symbol for symbol in self.rules.values()
                 if not symbol in used_symbols)
         #
         # Resolve first sets.
@@ -897,13 +903,13 @@ class Parser(object):
         # If we don't have a table see if we can use the pre_compiled version.
         #
         if pre_compiled:
-            if isinstance(pre_compiled, basestring):
+            if isinstance(pre_compiled, str):
                 pre_compiled = eval(pre_compiled, {'__builtins__': ()})
             if pre_compiled[0] == self.grammar_hash():
                 optimised_start_state = pre_compiled[1]
                 optimised_parsing_table = tuple(
                         from_flat(i - 2, pre_compiled[i])
-                        for i in xrange(2, len(pre_compiled)))
+                        for i in range(2, len(pre_compiled)))
                 self.parsing_table = (
                         optimised_start_state, optimised_parsing_table)
                 return None
@@ -923,7 +929,7 @@ class Parser(object):
     #
     def normalise_item_set_id(cls, parsing_table):
         start_state, table = parsing_table
-        mapping = itertools.izip(ItemSet.sorted(table), itertools.count(0))
+        mapping = zip(ItemSet.sorted(table), itertools.count(0))
         first = next(mapping)
         for item_set, id in itertools.chain((first,), mapping):
             item_set.id = id
@@ -940,7 +946,7 @@ class Parser(object):
                 if isinstance(symbol, Nonterm) and not symbol in all_nonterms:
                     r(symbol)
         all_nonterms = set()
-        for rule in self.rules.itervalues():
+        for rule in self.rules.values():
             r(rule)
         all_nonterms = [n for n in sorted(all_nonterms, key=lambda t: str(t))]
         result = []
@@ -972,8 +978,8 @@ class Parser(object):
             action_state = lambda act: is_state(tuple(act)[0])
             func = lambda item_set: (
                     is_state(item_set) or
-                    any(is_state(g) for g in item_set.gotos.values()) or
-                    any(action_state(a) for a in item_set.actions.values()))
+                    any(is_state(g) for g in list(item_set.gotos.values())) or
+                    any(action_state(a) for a in list(item_set.actions.values())))
         item_sets = (i for i in self.parsing_table[1] if func(i))
         result = []
         for item_set in a_state.sorted(item_sets):
@@ -987,7 +993,7 @@ class Parser(object):
     # Dump the grammar.
     #
     def repr_grammar(self):
-        result = [repr(rule) for name, rule in sorted(self.rules.iteritems())]
+        result = [repr(rule) for name, rule in sorted(self.rules.items())]
         return '\n'.join(result)
 
     #
@@ -1024,7 +1030,7 @@ class Parser(object):
         rule_symbols = {}
         symbols = {}
         token_registry = None
-        for name, field in sorted(dct.iteritems()):
+        for name, field in sorted(dct.items()):
             if isinstance(field, Symbol):
                 if isinstance(field, Ref):
                     raise GrammarError("Ref(%r) hasn't been defined" % name)
@@ -1061,14 +1067,14 @@ class Parser(object):
     #
     def resolve_rule(self, rule, rule_symbols):
         def r(nested):
-            for i, symbol in itertools.izip(itertools.count(), nested):
+            for i, symbol in zip(itertools.count(), nested):
                 if not isinstance(symbol, Rule):
                     resolved = rule_symbols.get(symbol, None)
                     if resolved is not None:
                         nested[i] = resolved
                     else:
                         r(symbol.nested)
-        for i, symbol in itertools.izip(itertools.count(), rule.nested):
+        for i, symbol in zip(itertools.count(), rule.nested):
             #resolved = rule_symbols[symbol]
             #if resolved is not rule:
             #    rule.nested[i] = resolved
@@ -1087,13 +1093,13 @@ class Parser(object):
             if isinstance(resolved, Rule):
                 return resolved
             resolved.parent = parent
-            for i, sym in itertools.izip(itertools.count(), resolved.nested):
+            for i, sym in zip(itertools.count(), resolved.nested):
                 if not isinstance(sym, Rule):
                     resolved.nested[i] = r(resolved, sym)
             return resolved
         name = rule.name
         token_registry = self.token_registry
-        for i, sym in itertools.izip(itertools.count(), rule.nested):
+        for i, sym in zip(itertools.count(), rule.nested):
             rule.nested[i] = r(rule, sym)
 
     #
@@ -1148,7 +1154,7 @@ class Parser(object):
         worklist = collections.deque([start_item_set])
         while worklist:
             item_set = worklist.popleft()
-            goto_sets = item_set.goto_sets(cache).iteritems()
+            goto_sets = iter(item_set.goto_sets(cache).items())
             for symbol, goto_set in sorted(goto_sets, key=lambda i: i[0].id):
                 lr1_merge = None
                 for lr1_item_set in lr0_item_sets[goto_set.lr0_kernel]:
@@ -1175,7 +1181,7 @@ class Parser(object):
         #
         table = dict(
             (item_set, item_set)
-            for item_set_list in lr0_item_sets.itervalues()
+            for item_set_list in lr0_item_sets.values()
             for item_set in item_set_list)
         for item_set in table:
             #
@@ -1227,7 +1233,7 @@ class Parser(object):
         action_list = [
                 (item_set, act)
                 for item_set in item_sets
-                for act in item_set.actions.iteritems()]
+                for act in item_set.actions.items()]
         for item_set, (token, actions) in action_list:
             if len(actions) == 1:
                 item_set.actions[token] = actions[0]
@@ -1415,7 +1421,7 @@ class Parser(object):
         #
         # Create a mapping of item_set: int, with start_state mapping to 0.
         #
-        state_number = dict(itertools.izip(
+        state_number = dict(zip(
             ItemSet.sorted(table), itertools.count()))
         item_set_0 = next(i for i in state_number if state_number[i] == 0)
         state_number[item_set_0] = state_number[start_state]
@@ -1439,7 +1445,7 @@ class Parser(object):
                 actions[token] = new_action
             gotos = dict(
                 (nonterm.id, state_number[itm_set])
-                for nonterm, itm_set in item_set.gotos.iteritems())
+                for nonterm, itm_set in item_set.gotos.items())
             state_id = len(optimised)
             lr1_state = Lr1State(state_id, actions, gotos, item_set.rules)
             optimised.append(lr1_state)
@@ -1455,8 +1461,8 @@ class Parser(object):
         grammar_tree = '; '.join(sorted(
             repr(self.rules[name]) for name in self.rules))
         hsh = hashlib.sha512()
-        hsh.update(grammar_tree)
-        hsh.update(self.VERSION)
+        hsh.update(grammar_tree.encode("utf8"))
+        hsh.update(self.VERSION.encode("utf8"))
         return hsh.hexdigest()
 
     #
@@ -1635,7 +1641,7 @@ class Symbol(object):
     def __ror__(self, other):
         return OpOr(other, self)
 
-    def __nonzero__(self):
+    def __bool__(self):
         return True
 
     def cast(cls, value):
@@ -1877,10 +1883,10 @@ class Nonterm(Symbol):
                 refers[s] -= no_refers
         rank = [0]
         while refers:
-            no_refers = set(s for s, r in refers.iteritems() if not r)
+            no_refers = set(s for s, r in refers.items() if not r)
             while refers and no_refers:
                 remove(no_refers)
-                no_refers = set(s for s, r in refers.iteritems() if not r)
+                no_refers = set(s for s, r in refers.items() if not r)
             #
             # If that didn't consume every token we have a cycle.  Break the
             # cycle by considering the node closest to the START symbol (ie
@@ -2445,11 +2451,11 @@ class Tokeniser(object):
         # Whitespace must be a string.
         #
         if whitespace is not None:
-            if not isinstance(whitespace, basestring):
+            if not isinstance(whitespace, str):
                 raise GrammarError("WHITESPACE must be a string")
         all_tokens = [
                 token
-                for token in self.registry.itervalues()
+                for token in self.registry.values()
                 if isinstance(token, Token)]
         patterns = [token for token in all_tokens if token.re is not None]
         self.literals = {}
@@ -2569,22 +2575,22 @@ class Tokeniser(object):
         #
         # Normalise the parameters.
         #
-        iterator = iter((input,) if isinstance(input, basestring) else input)
+        iterator = iter((input,) if isinstance(input, str) else input)
         if whitespace == "":
             is_whitespace = lambda s: False
             last_whitespace = lambda s: len(s)
         else:
             spaces = " \f\n\r\t\v" if whitespace is None else whitespace
             is_whitespace = lambda s: not s.lstrip(spaces)
-            trans = string.maketrans(spaces, spaces[0] * len(spaces))
+            trans = str.maketrans(spaces, spaces[0] * len(spaces))
             last_whitespace = lambda s: s.translate(trans).rfind(spaces[0])
         #
         # Loop until end of the stream.
         #
         cur_tok = next(iterator, None)
-        cur_isstr = isinstance(cur_tok, basestring)
+        cur_isstr = isinstance(cur_tok, str)
         nxt_tok = next(iterator, None)
-        nxt_isstr = isinstance(nxt_tok, basestring)
+        nxt_isstr = isinstance(nxt_tok, str)
         while cur_tok is not None:
             buf = ""
             #
@@ -2656,7 +2662,7 @@ class Tokeniser(object):
                 cur_tok = nxt_tok
                 cur_isstr = nxt_isstr
                 nxt_tok = next(iterator, None)
-                nxt_isstr = isinstance(nxt_tok, basestring)
+                nxt_isstr = isinstance(nxt_tok, str)
             #
             # If we are given non-strings pass it straight on.
             #
@@ -2665,7 +2671,7 @@ class Tokeniser(object):
                 cur_tok = nxt_tok
                 cur_isstr = nxt_isstr
                 nxt_tok = next(iterator, None)
-                nxt_isstr = isinstance(nxt_tok, basestring)
+                nxt_isstr = isinstance(nxt_tok, str)
 
 
 #
@@ -2675,7 +2681,7 @@ class TokenRegistryMeta(type):
 
     def __new__(cls, name, bases, dct):
         registry = super(TokenRegistryMeta, cls).__new__(cls, name, bases, dct)
-        if dct.get("__metaclass__", None) is not cls:
+        if not dct.pop("__is_the_base_token_registry__", False):
             registry.save_dicts()
         return registry
 
@@ -2683,13 +2689,15 @@ class TokenRegistryMeta(type):
 #
 # Put your token definitions in a class that inherits from this one.
 #
-class TokenRegistry(dict):
+class TokenRegistry(collections.OrderedDict, metaclass=TokenRegistryMeta):
+    __is_the_base_token_registry__ = True
+
     __dicts = None
-    __metaclass__ = TokenRegistryMeta
     __tokeniser = None
 
     def __init__(self):
-        for name, token_symbol in self.__class__.__dict__.iteritems():
+        super(TokenRegistry, self).__init__()
+        for name, token_symbol in self.__class__.__dict__.items():
             if isinstance(token_symbol, TokenSymbol):
                 qualified_name = "%s.%s" % (self.__class__.__name__, name)
                 token_symbol.set_name(qualified_name)
@@ -2702,7 +2710,7 @@ class TokenRegistry(dict):
     #
     def save_dicts(cls):
         cls.__dicts = {}
-        for token_symbol in cls.__dict__.itervalues():
+        for token_symbol in cls.__dict__.values():
             if isinstance(token_symbol, TokenSymbol):
                 cls.__dicts[token_symbol] = token_symbol.dict
                 token_symbol.dict = {}
@@ -2712,7 +2720,7 @@ class TokenRegistry(dict):
     # Return the dict's of all registered tokens.
     #
     def restore_dicts(cls):
-        for token_symbol, token_dict in cls.__dicts.iteritems():
+        for token_symbol, token_dict in cls.__dicts.items():
             token_symbol.dict = token_dict
         del cls.__dicts
     restore_dicts = classmethod(restore_dicts)
@@ -2971,7 +2979,7 @@ def Keyword(literal, case=None):
 Symbol.CAST = {
         str: Token,
         tuple: lambda t: Prio(*t),
-        unicode: Token,
+        str: Token,
     }
 
 
@@ -2996,7 +3004,7 @@ class GrammarMeta(type):
     def __new__(cls, name, bases, dct):
         if "_parser_" in dct:
             raise GrammarError("_parser_ is reserved in Gramma's.")
-        if dct.get("__metaclass__", None) is not cls:
+        if not dct.pop("__is_the_base_grammar__", False):
             dct["_parser_"] = Parser(name, dct)
         return super(GrammarMeta, cls).__new__(cls, name, bases, dct)
 
@@ -3004,8 +3012,8 @@ class GrammarMeta(type):
 #
 # The base class for Parsers.
 #
-class Grammar(object):
-    __metaclass__ = GrammarMeta
+class Grammar(object, metaclass=GrammarMeta):
+    __is_the_base_grammar__ = True
 
     def compile_grammar(cls):
         compile_grammar(cls)
