@@ -1,0 +1,21 @@
+lrparsing-1.0.4 2013-05-01
+
+	New: Implement __rXXX__ op's.
+
+lrparsing-1.0.3 2013-05-01
+
+	Bug: More doco fixups.
+	Bug: setup.py wasn't including MANIFEST.in in source build.
+
+lrparsing-1.0.2 2013-04-20
+
+	Bug: Doco fixups.
+
+lrparsing-1.0.1 2013-04-18
+
+	Bug: Doco fixups.
+	New: Speed improvements to tokenisation.
+
+lrparsing-1.0.0 2013-03-27
+
+	New: Epoc.
