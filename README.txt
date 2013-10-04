@@ -7,6 +7,12 @@ lrparsing
   The home page is:
     http://www.stuart.id.au/russell/files/lrparsing
 
+NOTE
+----
+
+This is a unofficial branch created by Kunshan Wang <wks1986@gmail.com>. The
+purpose is to use its Lua parser in an experimental lua compiler project.
+
 
 Requirements
 ------------
